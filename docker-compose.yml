@@ -1,0 +1,47 @@
+version: '3'
+
+services:
+  reverse-proxy:
+    # The official v2.0 Traefik docker image
+    image: traefik
+    # Enables the web UI and tells Traefik to listen to docker
+    command: --configFile=/traefik.toml
+    ports:
+      # The HTTP port
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./traefik.toml:/traefik.toml
+      - ./acme.json:/acme.json
+    labels:
+      traefik.enable: true
+      traefik.frontend.rule: Host:traefik.your-domain.com
+      traefik.frontend.auth.basic: traefik:$$apr1$$tbaHKyVC$$YPFwKez4VoeE6SzQLUBld0
+      traefik.docker.network: reverse-proxy
+      traefik.port: 8080
+    networks:
+      - reverse-proxy
+
+  traefik-forward-auth:
+    image: thomseddon/traefik-forward-auth:2
+    environment:
+      - CLIENT_ID=your-google-client-id
+      - CLIENT_SECRET=your-google-client-secret
+      - SECRET=soem-random-characters
+      - INSECURE_COOKIE=true # Example assumes no https, do not use in production
+      - DOMAIN=your-gsuite-domain.com
+      - AUTH_HOST=auth.your-domain.com
+    networks:
+      - reverse-proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.port=4181"
+      - "traefik.backend=traefik-forward-auth"
+      - "traefik.frontend.rule=Host:auth.your-domain.com"
+
+networks:
+  reverse-proxy:
+    external: true
